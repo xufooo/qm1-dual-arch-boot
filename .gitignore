@@ -1,0 +1,17 @@
+# 构建产物
+out/
+*.img
+*.img.gz
+*.img.xz
+*.img.zst
+*.deb
+*.efi
+
+# 抓取/解包的模块树
+grub-ia32-root/
+grub-amd64-root/
+
+# 系统与编辑器
+.DS_Store
+*.swp
+*~
