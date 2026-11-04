@@ -74,8 +74,8 @@ if { [ -z "$IA32_MODDIR" ] || [ -z "$AMD64_MODDIR" ]; } && [ "${FETCH_DEBIAN:-0}
     fetch_pkg grub2-common amd64          # 提供 grub-mkimage
     fetch_pkg grub-efi-ia32-bin i386      # 提供 i386-efi 模块
     fetch_pkg grub-efi-amd64-bin amd64    # 提供 x86_64-efi 模块
-    [ -z "$IA32_MODDIR" ]   && IA32_MODDIR="$(dirname "$(find "$TMP/root" -name 'linuxefi.mod' -path '*i386-efi*' | head -1)")"
-    [ -z "$AMD64_MODDIR" ] && AMD64_MODDIR="$(dirname "$(find "$TMP/root" -name 'linuxefi.mod' -path '*x86_64-efi*' | head -1)")"
+    [ -z "$IA32_MODDIR" ]   && IA32_MODDIR="$(dirname "$(find "$TMP/root" -name 'linux.mod' -path '*i386-efi*' | head -1)")"
+    [ -z "$AMD64_MODDIR" ] && AMD64_MODDIR="$(dirname "$(find "$TMP/root" -name 'linux.mod' -path '*x86_64-efi*' | head -1)")"
     # 优先用同套件的 grub-mkimage，保证与模块同版本
     if [ -x "$TMP/root/usr/bin/grub-mkimage" ]; then
         GRUB_MKIMAGE="$TMP/root/usr/bin/grub-mkimage"
