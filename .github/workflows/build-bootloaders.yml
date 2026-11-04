@@ -50,7 +50,7 @@ jobs:
           grep -E "x86-64" out/assert.txt
           grub-file --is-i386-efi    out/grub2ia32.efi
           grub-file --is-x86_64-efi out/grubx64.efi
-          sha256sum -c out/SHA256SUMS --ignore-missing
+          ( cd out && sha256sum -c SHA256SUMS )
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
