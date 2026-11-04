@@ -1,0 +1,77 @@
+name: build-esp-image
+
+# 手动触发：把双引导器组装成可写盘的 FAT32 ESP 启动镜像
+on:
+  workflow_dispatch:
+    inputs:
+      root_uuid:
+        description: "64 位根分区 ext4 UUID（占位即可，用于生成 grub.cfg）"
+        required: true
+        default: "00000000-0000-0000-0000-000000000000"
+      root32_uuid:
+        description: "32 位根分区 ext4 UUID（留空则不生成 32 位启动项）"
+        required: false
+        default: ""
+      size_mib:
+        description: "ESP 镜像大小（MiB）"
+        required: true
+        default: "512"
+
+permissions:
+  contents: read
+
+jobs:
+  esp:
+    name: assemble dual-arch ESP image
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie-slim
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            grub2-common file dosfstools mtools ca-certificates
+          dpkg --add-architecture i386
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            grub-efi-ia32-bin:i386 \
+            grub-efi-amd64-bin:amd64
+
+      - name: Build bootloaders
+        run: bash scripts/build-bootloaders.sh out
+
+      - name: Assemble ESP image
+        run: |
+          set -eux
+          bash scripts/make-esp-image.sh \
+            --out out/qm1-dual-boot.img \
+            --size-mib "${{ inputs.size_mib }}" \
+            --bootloaders out \
+            --root-uuid "${{ inputs.root_uuid }}" \
+            ${{ inputs.root32_uuid && format('--root32-uuid {0}', inputs.root32_uuid) || '' }}
+
+      - name: Inspect image contents
+        run: |
+          set -eux
+          mdir -i out/qm1-dual-boot.img -/ ::
+          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT
+          # 两个引导器必须在 FAT32 介质的固定路径上，命名错固件就找不到
+          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep BOOTIA32.EFI
+          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep BOOTX64.EFI
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qm1-esp-image-${{ github.sha }}
+          path: |
+            out/qm1-dual-boot.img
+            out/qm1-dual-boot.img.sha256
+            out/grub2ia32.efi
+            out/grubx64.efi
+            out/SHA256SUMS
+          if-no-files-found: error

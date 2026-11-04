@@ -1,0 +1,60 @@
+name: build-bootloaders
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build dual-arch EFI bootloaders
+    runs-on: ubuntu-latest
+    # Debian trixie 保证 grub-mkimage 与 grub-efi-*-bin 模块同版本
+    container:
+      image: debian:trixie-slim
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain (grub-mkimage + both module sets)
+        run: |
+          set -eux
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            grub2-common file ca-certificates
+          # i386 架构包提供 i386-efi 模块（amd64 包里没有）
+          dpkg --add-architecture i386
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            grub-efi-ia32-bin:i386 \
+            grub-efi-amd64-bin:amd64
+
+      - name: Build
+        run: bash scripts/build-bootloaders.sh out
+
+      - name: Assert artifacts
+        run: |
+          set -eux
+          test -s out/grub2ia32.efi
+          test -s out/grubx64.efi
+          file out/grub2ia32.efi | tee out/assert.txt
+          file out/grubx64.efi  | tee -a out/assert.txt
+          # file 的措辞随版本而变："Intel 80386" 与 "Intel i386" 都接受
+          grep -E "PE32" out/assert.txt
+          grep -E "Intel (80386|i386)" out/assert.txt
+          grep -E "PE32\+" out/assert.txt
+          grep -E "x86-64" out/assert.txt
+          grub-file --is-i386-efi    out/grub2ia32.efi
+          grub-file --is-x86_64-efi out/grubx64.efi
+          sha256sum -c out/SHA256SUMS --ignore-missing
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qm1-bootloaders-${{ github.sha }}
+          path: out/
+          if-no-files-found: error
