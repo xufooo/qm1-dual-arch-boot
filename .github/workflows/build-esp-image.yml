@@ -61,8 +61,10 @@ jobs:
           mdir -i out/qm1-dual-boot.img -/ ::
           mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT
           # 两个引导器必须在 FAT32 介质的固定路径上，命名错固件就找不到
-          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep BOOTIA32.EFI
-          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep BOOTX64.EFI
+          # （mdir 按 8.3 短名显示，空格会补齐，因此只匹配主名片段）
+          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep -q BOOTIA32
+          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep -q BOOTX64
+          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep -q grub.cfg
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
