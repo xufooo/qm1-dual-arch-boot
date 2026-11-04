@@ -98,7 +98,7 @@ QM1ESP/                        (FAT32, 卷标 QM1ESP)
 │   ├── BOOTX64.EFI            ← grubx64.efi
 │   └── grub.cfg
 ├── vmlinuz      initrd.img        (64 位)
-└── vmlinuz-32   initrd-32.img     (32 位)
+└── vmlinuz32    initrd32.img      (32 位)
 ```
 
 ```bash
@@ -111,12 +111,16 @@ menuentry "QM1 Debian 13 (64-bit amd64)" {
     initrd /initrd.img
 }
 menuentry "QM1 Debian 13 (32-bit i386)" {
-    linux  /vmlinuz-32 root=UUID=<32位根UUID> ro console=tty0 console=ttyS0,115200n8
-    initrd /initrd-32.img
+    linux  /vmlinuz32 root=UUID=<32位根UUID> ro console=tty0 console=ttyS0,115200n8
+    initrd /initrd32.img
 }
 ```
 
 内核与 initrd 放在 ESP 上，好处是引导链路与根文件系统解耦，根分区坏了也能进救援。
+
+ESP 上的文件名**刻意采用 8.3 可精确表示的形式**（`vmlinuz` / `initrd.img` / `vmlinuz32` / `initrd32.img`），
+这样即使 FAT 卷没有长文件名表也不会被截断；`BOOTIA32.EFI` 与 `BOOTX64.EFI` 本身就符合 8.3 规则，
+是 UEFI 可移动介质规范要求的固定路径。
 
 ## 关键坑
 
@@ -129,7 +133,7 @@ menuentry "QM1 Debian 13 (32-bit i386)" {
 7. **Secure Boot 必须关闭**，否则自编译的 `.efi` 会被拒绝签名校验。
 8. **不要在 chroot 里跑 `grub-install`** —— 它会写 64 位引导器，覆盖掉 IA32 跳板。
 9. `linux`/`initrd` 的 `root=UUID=` 必须是真实 UUID，不能写猜测值。
-10. **FAT32 介质要用 `mkfs.vfat` 建卷，别用 `mformat`** —— `mformat` 建的卷只有 8.3 短名支持：`grub.cfg` 会变成 `GRUB.CFG`，`vmlinuz-32` / `initrd-32.img` 这类名字会被直接截断，GRUB 在 ESP 上根本找不到文件。`mkfs.vfat -F 32` 建的是带长名表的 VFAT，`mcopy` 写入后文件名原样保留。本仓库 `make-esp-image.sh` 默认走这个后端，CI 里 `mdir -/` 的断言就是为了回归检查这一点。
+10. **FAT32 介质要用 `mkfs.vfat` 建卷，别用 `mformat`** —— `mformat` 建的卷只有 8.3 短名支持，超长文件名会被直接截断，GRUB 在 ESP 上根本找不到文件。本仓库 `make-esp-image.sh` 默认走 `mkfs.vfat -F 32` + `mcopy`；同时 ESP 上的文件名一律采用 8.3 可精确表示的形式（`vmlinuz` / `initrd.img` / `vmlinuz32` / `initrd32.img`），即使卷没有长名表也不受影响。CI 里的 `mdir` 断言已做「折叠空白 + 转小写」归一化，避免把 8.3 显示差异误判成失败。
 
 ## 参考案例
 

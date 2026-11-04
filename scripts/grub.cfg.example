@@ -21,7 +21,9 @@ menuentry "QM1 Debian 13 (64-bit amd64)" {
 }
 
 # 32 位系统（i386）：32 位固件可直接加载，i386-efi 引导器亦可
+# 文件名用 8.3 可精确表示的形式（vmlinuz32 / initrd32.img），
+# 这样即使 ESP 卷没有长文件名表（LFN）也能被 GRUB 找到。
 menuentry "QM1 Debian 13 (32-bit i386)" {
-    linux  /vmlinuz-32 root=UUID=@ROOT32_UUID@ ro console=tty0 console=ttyS0,115200n8
-    initrd /initrd-32.img
+    linux  /vmlinuz32 root=UUID=@ROOT32_UUID@ ro console=tty0 console=ttyS0,115200n8
+    initrd /initrd32.img
 }

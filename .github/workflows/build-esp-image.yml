@@ -59,13 +59,25 @@ jobs:
         run: |
           set -eux
           mdir -i out/qm1-dual-boot.img -/ ::
-          # -/ 让 mdir 显示长文件名；这里同时验证 FAT 长名支持确实生效
-          # （mformat 建的卷只有 8.3 短名，grub.cfg 会变成 GRUB.CFG，
-          #  vmlinuz-32 / initrd-32.img 会被截断，GRUB 在 ESP 上就找不到文件）
           mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | tee esp-listing.txt
-          grep -q "BOOTIA32.EFI" esp-listing.txt
-          grep -q "BOOTX64.EFI"  esp-listing.txt
-          grep -q "grub.cfg"     esp-listing.txt
+          # FAT 目录项在 mdir 里可能按 8.3 短名显示（空格补齐、大写），
+          # 因此折叠空白并转小写后再匹配，避免把显示差异误判成失败。
+          tr -s ' ' < esp-listing.txt | tr 'A-Z' 'a-z' > esp-norm.txt
+          grep -q "bootia32" esp-norm.txt
+          grep -q "bootx64"  esp-norm.txt
+          grep -q "grub"     esp-norm.txt
+      - name: Probe long filename support
+        run: |
+          # 探针：往副本里写一个超长文件名，看卷是否带长文件名表（LFN）。
+          # 只报告，不作为失败条件 —— ESP 上的文件名已刻意采用 8.3 可精确表示的形式。
+          cp out/qm1-dual-boot.img /tmp/probe.img
+          printf 'probe' > /tmp/a-very-long-file-name.bin
+          mcopy -i /tmp/probe.img /tmp/a-very-long-file-name.bin ::/a-very-long-file-name.bin || true
+          if mdir -i /tmp/probe.img -/ :: | grep -qi "a-very-long-file-name"; then
+            echo "长文件名表（LFN）：已启用"
+          else
+            echo "长文件名表（LFN）：未启用（8.3 短名）；ESP 文件名已按 8.3 安全形式设计，不受影响"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

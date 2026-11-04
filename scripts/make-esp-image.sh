@@ -5,14 +5,14 @@
 #   bash scripts/make-esp-image.sh --out out/qm1-dual-boot.img \
 #        --bootloaders out --root-uuid 11111111-2222-3333-4444-555555555555 \
 #        [--root32-uuid ...] [--kernel vmlinuz] [--initrd initrd.img] \
-#        [--kernel32 vmlinuz-32] [--initrd32 initrd-32.img] [--size-mib 512]
+#        [--kernel32 <vmlinuz32>] [--initrd32 <initrd32.img>] [--size-mib 512]
 #
 # 产出布局（UEFI 可移动介质规范路径）：
 #   /EFI/BOOT/BOOTIA32.EFI   ← grub2ia32.efi（PE32/IA32）
 #   /EFI/BOOT/BOOTX64.EFI    ← grubx64.efi （PE32+/x86-64）
 #   /EFI/BOOT/grub.cfg       ← 由 scripts/grub.cfg.example 生成
 #   /vmlinuz  /initrd.img       （64 位内核）
-#   /vmlinuz-32 /initrd-32.img  （32 位内核，可选）
+#   /vmlinuz32 /initrd32.img  （32 位内核，可选；名字刻意用 8.3 可精确表示的形式）
 #
 # 后端优先级：mtools（无需 root）→ loop 挂载（需要 root）
 set -euo pipefail
@@ -68,7 +68,8 @@ CFG_TMP="$(mktemp)"; printf '%s\n' "$cfg" > "$CFG_TMP"
 # ---------- 写入 FAT32 ----------
 # 关键：必须用 mkfs.vfat 建卷（VFAT 带长文件名支持）。
 # mformat 建的卷默认只有 8.3 短名支持 —— grub.cfg 会被存成 "GRUB.CFG"，
-# 而 vmlinuz-32 / initrd-32.img 这类名字会被直接截断，GRUB 在 ESP 上找不到文件。
+# 而 vmlinuz-32 这类超长名字会被直接截断，GRUB 在 ESP 上找不到文件。
+# 因此 ESP 上的文件名一律采用 8.3 可精确表示的形式（vmlinuz / initrd.img / vmlinuz32 / initrd32.img）。
 if command -v mkfs.vfat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1; then
     log "后端: mkfs.vfat + mtools（VFAT，长文件名保留；无需 root）"
     truncate -s "${SIZE_MIB}M" "$OUT"
@@ -79,8 +80,8 @@ if command -v mkfs.vfat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1; the
     mcopy -i "$OUT" "$CFG_TMP"                ::/EFI/BOOT/grub.cfg
     [ -n "$KERNEL"   ] && mcopy -i "$OUT" "$KERNEL"   ::/vmlinuz
     [ -n "$INITRD"   ] && mcopy -i "$OUT" "$INITRD"   ::/initrd.img
-    [ -n "$KERNEL32" ] && mcopy -i "$OUT" "$KERNEL32" ::/vmlinuz-32
-    [ -n "$INITRD32" ] && mcopy -i "$OUT" "$INITRD32" ::/initrd-32.img
+    [ -n "$KERNEL32" ] && mcopy -i "$OUT" "$KERNEL32" ::/vmlinuz32
+    [ -n "$INITRD32" ] && mcopy -i "$OUT" "$INITRD32" ::/initrd32.img
 elif command -v mformat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1; then
     log "后端: mformat + mtools（无 mkfs.vfat；注意 8.3 短名限制，文件名可能被截断）"
     dd if=/dev/zero of="$OUT" bs=1M count="$SIZE_MIB" status=none
@@ -91,8 +92,8 @@ elif command -v mformat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1; the
     mcopy -i "$OUT" "$CFG_TMP"                ::/EFI/BOOT/grub.cfg
     [ -n "$KERNEL"   ] && mcopy -i "$OUT" "$KERNEL"   ::/vmlinuz
     [ -n "$INITRD"   ] && mcopy -i "$OUT" "$INITRD"   ::/initrd.img
-    [ -n "$KERNEL32" ] && mcopy -i "$OUT" "$KERNEL32" ::/vmlinuz-32
-    [ -n "$INITRD32" ] && mcopy -i "$OUT" "$INITRD32" ::/initrd-32.img
+    [ -n "$KERNEL32" ] && mcopy -i "$OUT" "$KERNEL32" ::/vmlinuz32
+    [ -n "$INITRD32" ] && mcopy -i "$OUT" "$INITRD32" ::/initrd32.img
 elif command -v mkfs.vfat >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
     log "后端: loop 挂载（root）"
     truncate -s "${SIZE_MIB}M" "$OUT"
@@ -106,8 +107,8 @@ elif command -v mkfs.vfat >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
     cp "$CFG_TMP"               "$MNT/EFI/BOOT/grub.cfg"
     [ -n "$KERNEL"   ] && cp "$KERNEL"   "$MNT/vmlinuz"
     [ -n "$INITRD"   ] && cp "$INITRD"   "$MNT/initrd.img"
-    [ -n "$KERNEL32" ] && cp "$KERNEL32" "$MNT/vmlinuz-32"
-    [ -n "$INITRD32" ] && cp "$INITRD32" "$MNT/initrd-32.img"
+    [ -n "$KERNEL32" ] && cp "$KERNEL32" "$MNT/vmlinuz32"
+    [ -n "$INITRD32" ] && cp "$INITRD32" "$MNT/initrd32.img"
     sync; umount "$MNT"; rmdir "$MNT"
     trap 'rm -f "$CFG_TMP"' EXIT
 else
