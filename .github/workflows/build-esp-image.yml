@@ -59,12 +59,13 @@ jobs:
         run: |
           set -eux
           mdir -i out/qm1-dual-boot.img -/ ::
-          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT
-          # 两个引导器必须在 FAT32 介质的固定路径上，命名错固件就找不到
-          # （mdir 按 8.3 短名显示，空格会补齐，因此只匹配主名片段）
-          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep -q BOOTIA32
-          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep -q BOOTX64
-          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | grep -q grub.cfg
+          # -/ 让 mdir 显示长文件名；这里同时验证 FAT 长名支持确实生效
+          # （mformat 建的卷只有 8.3 短名，grub.cfg 会变成 GRUB.CFG，
+          #  vmlinuz-32 / initrd-32.img 会被截断，GRUB 在 ESP 上就找不到文件）
+          mdir -i out/qm1-dual-boot.img -/ ::/EFI/BOOT | tee esp-listing.txt
+          grep -q "BOOTIA32.EFI" esp-listing.txt
+          grep -q "BOOTX64.EFI"  esp-listing.txt
+          grep -q "grub.cfg"     esp-listing.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

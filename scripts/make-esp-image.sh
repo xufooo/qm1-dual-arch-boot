@@ -66,8 +66,23 @@ fi
 CFG_TMP="$(mktemp)"; printf '%s\n' "$cfg" > "$CFG_TMP"
 
 # ---------- 写入 FAT32 ----------
-if command -v mformat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1; then
-    log "后端: mtools（无需 root）"
+# 关键：必须用 mkfs.vfat 建卷（VFAT 带长文件名支持）。
+# mformat 建的卷默认只有 8.3 短名支持 —— grub.cfg 会被存成 "GRUB.CFG"，
+# 而 vmlinuz-32 / initrd-32.img 这类名字会被直接截断，GRUB 在 ESP 上找不到文件。
+if command -v mkfs.vfat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1; then
+    log "后端: mkfs.vfat + mtools（VFAT，长文件名保留；无需 root）"
+    truncate -s "${SIZE_MIB}M" "$OUT"
+    mkfs.vfat -F 32 -n "$LABEL" "$OUT" >/dev/null
+    mmd -i "$OUT" ::/EFI ::/EFI/BOOT 2>/dev/null || true
+    mcopy -i "$OUT" "$BOOTDIR/grub2ia32.efi" ::/EFI/BOOT/BOOTIA32.EFI
+    mcopy -i "$OUT" "$BOOTDIR/grubx64.efi"  ::/EFI/BOOT/BOOTX64.EFI
+    mcopy -i "$OUT" "$CFG_TMP"                ::/EFI/BOOT/grub.cfg
+    [ -n "$KERNEL"   ] && mcopy -i "$OUT" "$KERNEL"   ::/vmlinuz
+    [ -n "$INITRD"   ] && mcopy -i "$OUT" "$INITRD"   ::/initrd.img
+    [ -n "$KERNEL32" ] && mcopy -i "$OUT" "$KERNEL32" ::/vmlinuz-32
+    [ -n "$INITRD32" ] && mcopy -i "$OUT" "$INITRD32" ::/initrd-32.img
+elif command -v mformat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1; then
+    log "后端: mformat + mtools（无 mkfs.vfat；注意 8.3 短名限制，文件名可能被截断）"
     dd if=/dev/zero of="$OUT" bs=1M count="$SIZE_MIB" status=none
     mformat -i "$OUT" -F -v "$LABEL" :: >/dev/null
     mmd -i "$OUT" ::/EFI ::/EFI/BOOT

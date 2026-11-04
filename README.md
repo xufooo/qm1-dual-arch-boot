@@ -129,6 +129,7 @@ menuentry "QM1 Debian 13 (32-bit i386)" {
 7. **Secure Boot 必须关闭**，否则自编译的 `.efi` 会被拒绝签名校验。
 8. **不要在 chroot 里跑 `grub-install`** —— 它会写 64 位引导器，覆盖掉 IA32 跳板。
 9. `linux`/`initrd` 的 `root=UUID=` 必须是真实 UUID，不能写猜测值。
+10. **FAT32 介质要用 `mkfs.vfat` 建卷，别用 `mformat`** —— `mformat` 建的卷只有 8.3 短名支持：`grub.cfg` 会变成 `GRUB.CFG`，`vmlinuz-32` / `initrd-32.img` 这类名字会被直接截断，GRUB 在 ESP 上根本找不到文件。`mkfs.vfat -F 32` 建的是带长名表的 VFAT，`mcopy` 写入后文件名原样保留。本仓库 `make-esp-image.sh` 默认走这个后端，CI 里 `mdir -/` 的断言就是为了回归检查这一点。
 
 ## 参考案例
 
